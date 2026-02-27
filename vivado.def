@@ -1,0 +1,201 @@
+# Copyright © 2026 GSI Helmholtzzentrum für Schwerionenforschung gmbh
+# <https://gsi.de/>
+#
+# Everyone is permitted to copy and distribute verbatim copies of this license
+# document, but changing it is not allowed.
+#
+# Preamble
+# The GNU General Public License is a free, copyleft license for software and
+# other kinds of works. The licenses for most software and other practical
+# works are designed to take away your freedom to share and change the works.
+# By contrast, the GNU General Public License is intended to guarantee your
+# freedom to share and change all versions of a program--to make sure it
+# remains free software for all its users. We, GSI Helmholtzzentrum für
+# Schwerionenforschung, use the GNU General Public License for most of our
+# software; it applies also to any other work released this way by its authors.
+# You can apply it to your programs, too.Bootstrap: docker
+
+From: ubuntu:22.04
+
+%labels
+    Author Enrico Pierobon e.pierobon@gsi.de
+    Description Vivado Apptainer Container
+    Version 1.0
+
+%arguments
+    INSTALL_TARGET_DIR="/opt/xilinx"
+    HOST_TOOL_ARCHIVE_NAME="FPGAs_AdaptiveSoCs_Unified_SDI_2025.2_1114_2157.tar"
+    XILINX_INSTALL_TMP="/resources/xilinx/xilinx_installer/"
+    XSETUP_FILE="install_config.txt"
+
+%environment
+    export LANG=en_US.UTF-8
+    export LC_ALL=en_US.UTF-8
+    export XILINX_INSTALL_FOLDER=${INSTALL_TARGET_DIR}
+    export PATH=${INSTALL_TARGET_DIR}/Vivado/*/bin:$PATH
+	source /etc/profile.d/motd.sh
+
+
+%files
+    resources/{{ HOST_TOOL_ARCHIVE_NAME }} {{ XILINX_INSTALL_TMP }}/{{ HOST_TOOL_ARCHIVE_NAME }}
+
+%post
+    set -e
+
+    export DEBIAN_FRONTEND=noninteractive
+
+    # Use bash instead of dash (Vivado requirement)
+    echo "dash dash/sh boolean false" | debconf-set-selections
+    dpkg-reconfigure -f noninteractive dash
+
+    apt-get update
+
+    # Required build + runtime dependencies for Vivado
+    apt-get install -y \
+        autoconf \
+        build-essential \
+        tar \
+        locales \
+        libtinfo5 \
+        libncurses5 \
+        libgtk2.0-0 \
+        libxext6 \
+        libxrender1 \
+        libxtst6 \
+        libxi6 \
+        libglib2.0-0 \
+        libsm6 \
+        libice6 \
+        libxrandr2 \
+        libfontconfig1 \
+        libfreetype6 \
+        libstdc++6 \
+        wget \
+		lsb-release \
+        ca-certificates
+
+    # Generate locale
+    locale-gen en_US.UTF-8
+    update-locale LANG=en_US.UTF-8
+
+    # Prepare install directory
+    mkdir -p {{ INSTALL_TARGET_DIR }}
+
+    cd {{ XILINX_INSTALL_TMP }}
+
+    # Extract archive
+    tar -xf {{ HOST_TOOL_ARCHIVE_NAME }}
+
+    # Detect extracted folder name automatically
+    EXTRACT_DIR=$(tar -tf {{ HOST_TOOL_ARCHIVE_NAME }} | head -1 | cut -f1 -d"/")
+    cd ${EXTRACT_DIR}
+
+    # Install required Xilinx libraries
+    ./installLibs.sh -d ubuntu
+
+    # Generate batch configuration file
+    cat > {{ XILINX_INSTALL_TMP }}/{{ XSETUP_FILE }} <<EOF
+Edition=Vivado ML Standard
+Product=Vivado
+Destination={{ INSTALL_TARGET_DIR }}
+# Choose the Products/Devices the you would like to install.
+Modules=xcv80:0,Zynq UltraScale+ MPSoCs:0,Kintex UltraScale+ FPGAs:0,Virtex UltraScale+ 58G FPGAs:0,xcve2202:0,Vitis Model Composer(A toolbox for Simulink):1,Artix-7 FPGAs:1,Install devices for Alveo and edge acceleration platforms:0,Vitis Embedded Development:1,xcvm1102:0,Zynq-7000 All Programmable SoC:1,xcve2002:0,Virtex UltraScale+ HBM FPGAs:0,Spartan UltraScale+:0,xcve2302:0,Vitis Networking P4:0,Kintex UltraScale FPGAs:0,Power Design Manager (PDM):0,Virtex UltraScale+ FPGAs:0,Artix UltraScale+ FPGAs:0,Spartan-7 FPGAs:1,DocNav:1,Versal RF Series ES1:0,Install Devices for Kria SOMs and Starter Kits:0,xcve2102:0,Kintex-7 FPGAs:1
+
+CreateProgramGroupShortcuts=0
+CreateShortcutsForAllUsers=0
+CreateDesktopShortcuts=0
+CreateFileAssociation=0
+# This option is version-dependent. It will not affect vivado 2025.2
+EnableDiskUsageOptimization=1
+EOF
+
+    # Run installer in batch mode
+    ./xsetup \
+        --config {{ XILINX_INSTALL_TMP }}/{{ XSETUP_FILE }} \
+        --batch Install \
+        --location {{ INSTALL_TARGET_DIR }} \
+        --agree XilinxEULA,3rdPartyEULA
+
+    # Cleanup installer files
+    cd /
+    rm -rf {{ XILINX_INSTALL_TMP }}
+
+	# Reduce image size
+	apt-get clean
+	rm -rf /var/lib/apt/lists/*
+
+	# set up drivers removed for now.
+	#cd {{ INSTALL_TARGET_DIR }} 
+	#driver_script=$(find . -type f -name install_drivers -print -quit)
+	#if [ -z "$driver_script" ]; then
+	#	echo "Install_drivers not found"
+	#else
+	#	echo "Installing drivers"
+	#    "$driver_script"
+	#fi
+
+	# Create standard bind points
+	mkdir -p /src
+	mkdir -p /work
+
+	# set up motd 
+	echo "echo '===== Vivado in apptainer container ====='" >> /etc/profile.d/motd.sh
+	echo "echo 'Container build with xilinx toolchain'" >> /etc/profile.d/motd.sh
+	echo "echo 'or apptainer run-help command'" >> /etc/profile.d/motd.sh
+	chmod +x /etc/profile.d/motd.sh
+
+
+%runscript
+    exec "$@"
+
+%test
+	set -e
+
+	echo "===== Running Vivado container test ====="
+
+	# Locate settings script dynamically
+	SETTINGS_SCRIPT=$(find {{ INSTALL_TARGET_DIR }}/*/Vivado -name settings64.sh)
+
+	if [ -z "$SETTINGS_SCRIPT" ]; then
+	echo "ERROR: settings64.sh not found!"
+	exit 1
+	fi
+
+	echo "Sourcing $SETTINGS_SCRIPT"
+	source $SETTINGS_SCRIPT
+
+	# Verify vivado binary exists
+	if ! command -v vivado >/dev/null 2>&1; then
+	echo "ERROR: vivado not found in PATH!"
+	exit 1
+	fi
+
+	echo "Vivado found: $(which vivado)"
+
+	# Create minimal Tcl test
+	cat >/tmp/test.tcl <<EOF
+puts "Vivado Tcl test successful"
+exit
+EOF
+
+	echo "Running Vivado in batch mode..."
+	vivado -mode batch -source /tmp/test.tcl -nolog -nojournal
+
+	echo "Vivado batch execution successful!"
+
+%help
+    This container installs Xilinx Vivado from {{ HOST_TOOL_ARCHIVE_NAME }}
+
+	Vivado is installed in {{ INSTALL_TARGET_DIR }}
+
+
+    Example usage:
+        apptainer run \
+            --bind /host/src:/src \
+            --bind /host/work:/work \
+            vivado.sif
+	
+	SETTINGS_SCRIPT=$(find {{ INSTALL_TARGET_DIR }}/*/Vivado -name settings64.sh)
+	Source the proper enviroment like: ${SETTINGS_SCRIPT}
+
+	
