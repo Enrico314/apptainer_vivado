@@ -34,7 +34,7 @@ The user can customize them as needed.
 
 
 #### Futher notes:
- - The container is quite nice: ~20G. The building process requires quite a bit of space ~ 200G.
+ - The container is quite nice: ~20G. The building process requires quite a bit of space ~ 250G.
  - Building the container is time consuming < 20 min (depending on the hardware).
  - The build script has been tested for the Vivado2025.2 version. Other editions might require adjustments.
  - This version is not tested with driver support. Some additional tweks might be required to use this container to directly interact with specific driver.
