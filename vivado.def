@@ -1,26 +1,10 @@
-# Copyright © 2026 GSI Helmholtzzentrum für Schwerionenforschung gmbh
-# <https://gsi.de/>
-#
-# Everyone is permitted to copy and distribute verbatim copies of this license
-# document, but changing it is not allowed.
-#
-# Preamble
-# The GNU General Public License is a free, copyleft license for software and
-# other kinds of works. The licenses for most software and other practical
-# works are designed to take away your freedom to share and change the works.
-# By contrast, the GNU General Public License is intended to guarantee your
-# freedom to share and change all versions of a program--to make sure it
-# remains free software for all its users. We, GSI Helmholtzzentrum für
-# Schwerionenforschung, use the GNU General Public License for most of our
-# software; it applies also to any other work released this way by its authors.
-# You can apply it to your programs, too.Bootstrap: docker
-
+Bootstrap: docker
 From: ubuntu:22.04
 
 %labels
     Author Enrico Pierobon e.pierobon@gsi.de
     Description Vivado Apptainer Container
-    Version 1.0
+    Version 1.1
 
 %arguments
     INSTALL_TARGET_DIR="/opt/xilinx"
@@ -72,6 +56,7 @@ From: ubuntu:22.04
         libstdc++6 \
         wget \
 		lsb-release \
+		libyaml-dev \
         ca-certificates
 
     # Generate locale
@@ -89,9 +74,6 @@ From: ubuntu:22.04
     # Detect extracted folder name automatically
     EXTRACT_DIR=$(tar -tf {{ HOST_TOOL_ARCHIVE_NAME }} | head -1 | cut -f1 -d"/")
     cd ${EXTRACT_DIR}
-
-    # Install required Xilinx libraries
-    ./installLibs.sh -d ubuntu
 
     # Generate batch configuration file
     cat > {{ XILINX_INSTALL_TMP }}/{{ XSETUP_FILE }} <<EOF
@@ -115,6 +97,9 @@ EOF
         --batch Install \
         --location {{ INSTALL_TARGET_DIR }} \
         --agree XilinxEULA,3rdPartyEULA
+
+    # Moved install script
+    ./installLibs.sh -d ubuntu
 
     # Cleanup installer files
     cd /
@@ -141,12 +126,24 @@ EOF
 	# set up motd 
 	echo "echo '===== Vivado in apptainer container ====='" >> /etc/profile.d/motd.sh
 	echo "echo 'Container build with xilinx toolchain'" >> /etc/profile.d/motd.sh
+	echo "echo 'For additional details check https://git.gsi.de/fpga/amd_toolchain/apptainer_vivado'" >> /etc/profile.d/motd.sh
 	echo "echo 'or apptainer run-help command'" >> /etc/profile.d/motd.sh
 	chmod +x /etc/profile.d/motd.sh
 
 
 %runscript
+	# Source Vivado environment automatically
+	if [ -f {{ INSTALL_TARGET_DIR }}/*/Vivado/settings64.sh ]; then
+		echo "sourcing Vivado settings"
+		source {{ INSTALL_TARGET_DIR }}/*/Vivado/settings64.sh
+	fi
+	# Source Vivado environment automatically
+	if [ -f {{ INSTALL_TARGET_DIR }}/*/Vitis/settings64.sh ]; then
+		echo "sourcing Vitis settings"
+		source {{ INSTALL_TARGET_DIR }}/*/Vitis/settings64.sh
+	fi
     exec "$@"
+
 
 %test
 	set -e
