@@ -143,7 +143,7 @@ EOF
 	# set up motd 
 	echo "echo '===== Vivado in apptainer container ====='" >> /etc/profile.d/motd.sh
 	echo "echo 'Container build with xilinx toolchain'" >> /etc/profile.d/motd.sh
-	echo "echo 'For additional details check https://git.gsi.de/fpga/amd_toolchain/apptainer_vivado'" >> /etc/profile.d/motd.sh
+	echo "echo 'For additional details check https://github.com/Enrico314/apptainer_vivado/blob/master/vivado.def'" >> /etc/profile.d/motd.sh
 	echo "echo 'or apptainer run-help command'" >> /etc/profile.d/motd.sh
 	chmod +x /etc/profile.d/motd.sh
 
