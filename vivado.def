@@ -86,7 +86,7 @@ From: ubuntu:22.04
     cd {{ XILINX_INSTALL_TMP }}
 
     # Extract archive
-    tar -xf {{ HOST_TOOL_ARCHIVE_NAME }}
+    tar -xf {{ HOST_TOOL_ARCHIVE_NAME }} --no-same-owner
 
     # Detect extracted folder name automatically
     EXTRACT_DIR=$(tar -tf {{ HOST_TOOL_ARCHIVE_NAME }} | head -1 | cut -f1 -d"/")
